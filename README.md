@@ -1,30 +1,39 @@
-# 🎬 Video Automation Engine (JSON Specification)
+# 🎬 Automated Video Engine (JSON Timeline)
 
-This engine turns a structured **JSON Timeline** into a professional video using FFmpeg. It supports multi-layer composition (video-on-video), smart audio synchronization, and hybrid duration logic (Auto-TTS or Script-Fixed).
+**A professional, FFmpeg-based engine that turns structured JSON timelines into high-quality video edits.**
 
----
-
-## 🚀 Key Features
-
-* **Timeline Architecture:** Stitch multiple scenes together sequentially.
-* **Hybrid Duration Logic:**
-* **Auto Mode:** Scene length matches the Voiceover (TTS) automatically.
-* **Script Mode:** Force a specific duration (e.g., 10s) regardless of audio length.
-
-
-* **Multi-Layer Compositing:** Stack unlimited layers (Background -> Video Overlay -> Image Watermark -> Text).
-* **Smart Assets:** Auto-looping, auto-cropping (`cover`/`contain`), and transparency support.
-* **Audio Mixing:** Automatically mixes background music with voiceovers and SFX.
+This engine is designed for **AI Automation Agencies** and **Python Developers** who need to generate complex videos programmatically. It moves beyond simple concatenation, offering a full **Timeline & Layering System** similar to professional video editing software (Adobe Premiere, CapCut), but controlled entirely via code.
 
 ---
 
-## 📜 The JSON Structure
+## ❓ Why use this?
 
-The JSON file must follow this strict structure. **No comments (`//`) allowed in the actual file.**
+Most video automation scripts only handle one video and one audio file. This engine allows you to:
 
-### 1. Root Settings
+1. **Layer Media:** Put a watermark over a video, or a "Ghost" video on top of another.
+2. **Mix Audio:** Automatically lower background music volume while a Voiceover plays.
+3. **Hybrid Control:** Let the **Audio** decide the scene length (great for TTS), OR force a specific **Script** duration (great for memes/pauses).
+4. **Handle Unpredictability:** Automatically **Loops** stock footage if it's too short, or **Trims** it if it's too long.
 
-Global settings for the video render.
+---
+
+## ⚡ Key Features
+
+* **Timeline Architecture:** Sequence multiple scenes seamlessly.
+* **Smart "Auto-Looping":** Never worry about stock footage being shorter than your audio. The engine fixes it.
+* **Multi-Layer Compositing:** Stack Video, Images, Text, and Audio on top of each other.
+* **Resolution Agnostic:** Built for 1080x1920 (Vertical) but adaptable to any aspect ratio.
+* **Performance:** Optimized FFmpeg filter chains for fast rendering.
+
+---
+
+## 📖 How to Use
+
+The engine accepts a single `job.json` file. This file describes the entire video project.
+
+### 1. The Structure
+
+The JSON is divided into **Settings** (Global) and **Timeline** (The Sequence).
 
 ```json
 {
@@ -33,103 +42,80 @@ Global settings for the video render.
     "height": 1920
   },
   "background_track": {
-    "source": "https://link.to/music.mp3",
-    "volume": 0.15  // 0.0 to 1.0 (Keep low for background)
-  }
+    "source": "https://link.to/lofi_beat.mp3",
+    "volume": 0.15
+  },
+  "timeline": [
+    { ...Scene 1... },
+    { ...Scene 2... }
+  ]
 }
 
 ```
 
-### 2. The Timeline
+### 2. Hybrid Duration Logic (The Core Concept)
 
-An array of **Scenes**. Each scene plays one after the other.
+This is the most powerful feature. You can control time in two ways:
 
-```json
-"timeline": [
-  { "comment": "Scene 1", "layers": [...] },
-  { "comment": "Scene 2", "layers": [...] }
-]
+#### 🅰️ Auto Mode (Voice-Driven)
 
-```
+* **Use Case:** Explainer videos, News, Storytelling.
+* **How it works:** The scene lasts exactly as long as the TTS audio.
+* **Configuration:**
+* Do **NOT** set a `duration` value.
+* Add `"role": "main"` to your Audio layer.
+
+
+
+#### 🅱️ Script Mode (Fixed Duration)
+
+* **Use Case:** Intros, Outros, Visual Pauses, Memes.
+* **How it works:** The scene is forced to a specific time (e.g., 5 seconds).
+* **Configuration:**
+* Set `"duration": 5.0` in the scene object.
+* If audio is shorter, silence is added. If longer, it is cut.
+
+
 
 ---
 
-## 🛠 Layer Properties
+## 🛠 Layer Properties Reference
 
-Every scene is built from **Layers**. Layers are processed from **Bottom to Top** (Layer 0 is the background).
+Every scene is a stack of layers. Layers are rendered from **Bottom (0) to Top**.
 
-### Common Properties (All Layers)
+### 🎥 Visual Layers (Video / Image)
 
 | Property | Type | Description |
 | --- | --- | --- |
-| `type` | String | `video`, `image`, `audio`, `text` |
-| `source` | String | URL (`http`) or Base64 (`data:`) |
-
-### 🎥 Video & Image Layers
-
-| Property | Value | Description |
-| --- | --- | --- |
-| `resize_mode` | `"cover"` | **(Default)** Crops to fill screen (good for backgrounds). |
-|  | `"contain"` | Fits inside black bars (good for charts/memes). |
-|  | `"stretch"` | Distorts to fit exact size. |
-| `duration_mode` | `"loop"` | **(Default for Images)** Repeats/Holds if scene is longer than asset. |
-|  | `"trim"` | Cuts the video if it's too long. |
-| `opacity` | `0.0 - 1.0` | Transparency (e.g., `0.5` for ghost effect). |
-| `x` / `y` | Integer / String | Position. Supports math: `"(W-w)/2"` (Center), `"W-w-20"` (Right). |
-| `width` / `height` | Integer | Force specific dimensions (e.g., `500`). |
+| `type` | String | `"video"` or `"image"` |
+| `source` | String | Direct URL (`http`) or Base64 string (`data:`). |
+| `resize_mode` | String | `"cover"` (Fill screen), `"contain"` (Fit inside), `"stretch"`. |
+| `duration_mode` | String | `"loop"` (Repeat to fit), `"trim"` (Cut to fit), `"freeze"` (Hold last frame). |
+| `opacity` | Float | `0.0` (Invisible) to `1.0` (Visible). |
+| `x` / `y` | String | Position logic. E.g., `"(W-w)/2"` for center. |
 
 ### 🔊 Audio Layers
 
-| Property | Value | Description |
+| Property | Type | Description |
 | --- | --- | --- |
-| `role` | `"main"` | **Crucial:** Sets this file as the "Master Clock" for **Auto Mode**. |
-| `volume` | `0.0 - 1.0` | Volume level. |
+| `type` | String | `"audio"` |
+| `role` | String | Set to `"main"` to make this file dictate the scene length (Auto Mode). |
+| `volume` | Float | `1.0` is 100%. |
 
 ### ✍️ Text Layers
 
-| Property | Value | Description |
+| Property | Type | Description |
 | --- | --- | --- |
-| `content` | String | The text to display. |
+| `type` | String | `"text"` |
+| `content` | String | The text string to display. |
 | `size` | Integer | Font size (e.g., `60`). |
-| `color` | String | Color name (`"white"`, `"yellow"`) or Hex. |
-| `x` / `y` | String | Position logic (same as video). |
+| `color` | String | Color name (`yellow`, `white`, `black`) or Hex code. |
 
 ---
 
-## ⏱️ Duration Logic (Auto vs. Manual)
+## 📄 Example JSON Payload
 
-You can mix these modes in the same video.
-
-### 1. Auto Mode (Voice is King)
-
-Use this when you want the video to end exactly when the TTS finishes.
-
-* **How:** Do **NOT** set `duration` in the scene object.
-* **Requirement:** One audio layer must have `"role": "main"`.
-* **Behavior:** Video loops/cuts to match the MP3 length.
-
-### 2. Script Mode (Fixed Time)
-
-Use this for intros, outros, or visual pauses.
-
-* **How:** Set `"duration": 5.0` (seconds) in the scene object.
-* **Behavior:** The scene will be exactly 5.0s. If audio is shorter, it adds silence. If audio is longer, it cuts it.
-
----
-
-## ⚠️ Do's and Don'ts
-
-| ✅ DO | ❌ DO NOT |
-| --- | --- |
-| Use **Raw Links** for GitHub files (`raw.githubusercontent.com`). | Use Blob links (`github.com/.../blob/...`). |
-| Use `"role": "main"` for TTS audio. | Forget to specify how scene duration is calculated. |
-| Set `volume` to `0.1` for background music. | Set BG music to `1.0` (it will overpower the voice). |
-| Use `duration_mode: "loop"` for short stock clips. | Expect a 2s video to fill a 10s scene without looping. |
-| **Keep JSON Clean.** | **Add Comments (`//`) inside the JSON file.** |
-
----
-
-## 📄 Example JSON (Copy Paste)
+Copy this to test the engine capabilities.
 
 ```json
 {
@@ -143,40 +129,40 @@ Use this for intros, outros, or visual pauses.
   },
   "timeline": [
     {
-      "comment": "SCENE 1: Auto Mode (Matches Voiceover)",
+      "comment": "SCENE 1: Auto Mode. The video loops until the Voiceover finishes.",
       "layers": [
         {
           "type": "audio",
           "role": "main",
-          "source": "https://link.to/voiceover.mp3",
+          "source": "https://www2.cs.uic.edu/~i101/SoundFiles/BabyElephantWalk60.wav",
           "volume": 1.0
         },
         {
           "type": "video",
-          "source": "https://link.to/background_video.mp4",
+          "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
           "resize_mode": "cover",
           "duration_mode": "loop"
         },
         {
           "type": "text",
-          "content": "Listening to Audio Length...",
+          "content": "Mode: Auto-Sync",
           "y": 1200,
           "color": "yellow"
         }
       ]
     },
     {
-      "comment": "SCENE 2: Script Mode (Fixed 3 Seconds)",
+      "comment": "SCENE 2: Script Mode. Forced to 3 seconds regardless of audio.",
       "duration": 3.0,
       "layers": [
         {
           "type": "image",
-          "source": "https://link.to/meme.png",
+          "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Python-logo-notext.svg/200px-Python-logo-notext.svg.png",
           "resize_mode": "contain"
         },
         {
           "type": "text",
-          "content": "Forced 3s Pause",
+          "content": "Fixed 3s Pause",
           "y": 1500,
           "size": 50
         }
@@ -186,3 +172,9 @@ Use this for intros, outros, or visual pauses.
 }
 
 ```
+
+## ⚠️ Important Notes
+
+1. **Direct Links Only:** When using URLs, ensure they point directly to the file (ending in .mp4, .mp3, .png). Do not use webpage links (like Dropbox landing pages).
+2. **JSON Syntax:** Standard JSON does not support comments (`//`). Remove them before processing.
+3. **Order Matters:** Layers are stacked in order. The first item in the `layers` list is the background. The last item is the top-most overlay.
