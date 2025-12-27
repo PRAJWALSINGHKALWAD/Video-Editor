@@ -183,7 +183,7 @@ class SceneRenderer:
             filter_chain.append(f"anullsrc=channel_layout=stereo:sample_rate=44100:d={scene_duration}[{final_audio_node}]")
 
         # 5. Build Final Command
-        # CRITICAL FIX: Treat input 0 (canvas) as lavfi
+        # CRITICAL FIX: Treat input 0 (canvas) as lavfi to prevent "No such file" error
         cmd = ["ffmpeg", "-y"]
         
         # Input 0: The Virtual Canvas
