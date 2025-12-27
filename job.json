@@ -9,7 +9,7 @@
   },
   "timeline": [
     {
-      "comment": "First Voiceover Segment",
+      "comment": "Auto Mode: Length determined by Audio",
       "layers": [
         {
           "type": "audio",
@@ -26,7 +26,7 @@
         },
         {
           "type": "text",
-          "content": "Test Success!",
+          "content": "Mode: Auto (Matches Audio)",
           "y": 1200,
           "size": 70,
           "color": "yellow"
@@ -34,11 +34,11 @@
       ]
     },
     {
-      "comment": "Second Voiceover Segment",
+      "comment": "Script Mode: Length forced to 10 seconds",
+      "duration": 10.0,
       "layers": [
         {
           "type": "audio",
-          "role": "main",
           "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/test_2.mp3",
           "volume": 1.0
         },
@@ -47,11 +47,11 @@
           "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
           "resize_mode": "cover",
           "duration_mode": "loop",
-          "opacity": 0.4
+          "opacity": 0.5
         },
         {
           "type": "text",
-          "content": "Audio Segment 2",
+          "content": "Mode: Script (Fixed 10s)",
           "y": 1400,
           "size": 60,
           "color": "white"
