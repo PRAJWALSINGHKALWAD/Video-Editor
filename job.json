@@ -8,38 +8,62 @@
     "volume": 0.1
   },
   "timeline": [
+    // --- SCENE 1: test_success.mp3 ---
     {
-      "duration": 6.0,
+      "comment": "First Voiceover Segment",
       "layers": [
+        // 1. MAIN AUDIO (Determines Scene Duration)
+        {
+          "type": "audio",
+          "role": "main",
+          "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/test_success.mp3",
+          "volume": 1.0
+        },
+        // 2. BACKGROUND VIDEO (Loops to match audio)
         {
           "type": "video",
           "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
           "resize_mode": "cover",
-          "duration_mode": "loop"
+          "duration_mode": "loop",
+          "opacity": 1.0
         },
-        {
-          "type": "video",
-          "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-          "resize_mode": "cover",
-          "opacity": 0.3,
-          "x": 50,
-          "duration_mode": "loop"
-        },
-        {
-          "type": "image",
-          "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Python-logo-notext.svg/200px-Python-logo-notext.svg.png",
-          "width": 150,
-          "height": 150,
-          "x": "W-w-40",
-          "y": 40,
-          "opacity": 0.9
-        },
+        // 3. TEXT OVERLAY
         {
           "type": "text",
-          "content": "Multi-Layer Engine Works!",
+          "content": "Test Success!",
           "y": 1200,
-          "size": 65,
+          "size": 70,
           "color": "yellow"
+        }
+      ]
+    },
+
+    // --- SCENE 2: test_2.mp3 ---
+    {
+      "comment": "Second Voiceover Segment",
+      "layers": [
+        // 1. MAIN AUDIO
+        {
+          "type": "audio",
+          "role": "main",
+          "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/test_2.mp3",
+          "volume": 1.0
+        },
+        // 2. BACKGROUND VIDEO (Same video, but ghost effect for variety)
+        {
+          "type": "video",
+          "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+          "resize_mode": "cover",
+          "duration_mode": "loop",
+          "opacity": 0.4 
+        },
+        // 3. TEXT OVERLAY
+        {
+          "type": "text",
+          "content": "Audio Segment 2",
+          "y": 1400,
+          "size": 60,
+          "color": "white"
         }
       ]
     }
