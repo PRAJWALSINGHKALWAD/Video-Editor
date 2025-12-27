@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-FFmpeg Timeline Video Engine (Multi-Layer Support)
-Features: Unlimited Overlay Stacking (Video-on-Video), Audio Mixing, Auto-Duration.
+FFmpeg Timeline Video Engine (Fixed Lavfi Input)
+Features: Unlimited Overlay Stacking, Audio Mixing, Auto-Duration.
 """
 import argparse
 import base64
@@ -73,10 +73,8 @@ class SceneRenderer:
         layers = self.spec.get("layers", [])
         
         # 1. Determine Scene Duration
-        # Check for a "master" audio layer or manual duration
         master_audio = next((l for l in layers if l.get("type") == "audio" and l.get("role") == "main"), None)
         if not master_audio:
-            # Fallback: First audio layer
             master_audio = next((l for l in layers if l.get("type") == "audio"), None)
             
         scene_duration = 0.0
@@ -84,7 +82,7 @@ class SceneRenderer:
         if master_audio:
             path = get_asset_path(master_audio["source"])
             self.temp_files.append(path)
-            master_audio["_local_path"] = path # Cache path
+            master_audio["_local_path"] = path 
             scene_duration = get_media_duration(path)
             print(f"[Scene {self.index}] Auto-duration: {scene_duration}s")
         else:
@@ -95,43 +93,39 @@ class SceneRenderer:
         inputs = []
         filter_chain = []
         
-        # Input 0: Canvas (Black)
-        inputs.append(f"color=c=black:s={self.w}x{self.h}:d={scene_duration}")
+        # We handle the Canvas (Input 0) separately in the command build step
+        # Input 0 is reserved for: color=c=black:s=WxH:d=DURATION
+        canvas_source = f"color=c=black:s={self.w}x{self.h}:d={scene_duration}"
         filter_chain.append(f"[0:v]null[v_0]")
         
         current_v = "v_0"
-        input_count = 1
+        # Since Input 0 is the canvas, real files start at Input 1
+        input_count = 1 
         
-        # Collect Audio Streams for mixing
         audio_streams = []
 
-        # 3. Iterate Through Layers (Bottom to Top)
+        # 3. Iterate Layers
         for i, layer in enumerate(layers):
             l_type = layer.get("type")
             
-            # --- VISUAL LAYERS (Video/Image) ---
+            # --- VISUAL LAYERS ---
             if l_type in ["video", "image"]:
-                # Get Path (check if already downloaded)
                 path = layer.get("_local_path") or get_asset_path(layer["source"])
                 if path not in self.temp_files: self.temp_files.append(path)
                 inputs.append(path)
                 
-                # Logic: Loop/Trim
                 dur_mode = layer.get("duration_mode", "trim")
                 vid_ref = f"[{input_count}:v]"
                 
                 processed_v = f"v_in_{i}"
                 
-                # A. Handle Duration (Loop/Freeze)
                 loop_cmd = ""
                 if dur_mode == "loop" or dur_mode == "freeze":
                     loop_cmd = "loop=loop=-1:size=32767:start=0,"
                 
-                # B. Handle Resize/Position
-                # Defaults: Full screen cover
                 width = layer.get("width", self.w)
                 height = layer.get("height", self.h)
-                x = layer.get("x", "(W-w)/2") # Center default
+                x = layer.get("x", "(W-w)/2")
                 y = layer.get("y", "(H-h)/2")
                 opacity = layer.get("opacity", 1.0)
                 
@@ -143,20 +137,15 @@ class SceneRenderer:
                 elif resize_mode == "contain":
                     scale_cmd = f"scale={width}:{height}:force_original_aspect_ratio=decrease"
                 else:
-                    # Explicit stretch to w/h
                     scale_cmd = f"scale={width}:{height}"
                     
-                # C. Opacity
                 opacity_cmd = ""
                 if opacity < 1.0:
                     opacity_cmd = f",colorchannelmixer=aa={opacity}"
                 
-                # Chain: Loop -> Scale -> Trim -> Opacity
                 filter_chain.append(f"{vid_ref}{loop_cmd}setpts=N/FRAME_RATE/TB,{scale_cmd},trim=duration={scene_duration}{opacity_cmd}[{processed_v}]")
                 
-                # D. Overlay on previous layer
                 next_v = f"v_{i+1}"
-                # eval=init ensures overlay executes once efficiently
                 filter_chain.append(f"[{current_v}][{processed_v}]overlay=x={x}:y={y}:eof_action=pass:shortest=1[{next_v}]")
                 current_v = next_v
                 input_count += 1
@@ -176,16 +165,12 @@ class SceneRenderer:
 
             # --- AUDIO LAYER ---
             elif l_type == "audio":
-                # Check if we processed this path for duration already
                 path = layer.get("_local_path") or get_asset_path(layer["source"])
                 if path not in self.temp_files: self.temp_files.append(path)
-                
-                # We need to add it to inputs if not already done (master audio might be done)
                 inputs.append(path)
                 
                 vol = layer.get("volume", 1.0)
                 a_lbl = f"a_raw_{i}"
-                # Trim to scene duration + Volume
                 filter_chain.append(f"[{input_count}:a]atrim=duration={scene_duration},volume={vol}[{a_lbl}]")
                 audio_streams.append(f"[{a_lbl}]")
                 input_count += 1
@@ -195,11 +180,16 @@ class SceneRenderer:
         if len(audio_streams) > 0:
             filter_chain.append(f"{''.join(audio_streams)}amix=inputs={len(audio_streams)}:duration=first:dropout_transition=0[{final_audio_node}]")
         else:
-            # Silence
             filter_chain.append(f"anullsrc=channel_layout=stereo:sample_rate=44100:d={scene_duration}[{final_audio_node}]")
 
-        # 5. Render
+        # 5. Build Final Command
+        # CRITICAL FIX: Treat input 0 (canvas) as lavfi
         cmd = ["ffmpeg", "-y"]
+        
+        # Input 0: The Virtual Canvas
+        cmd.extend(["-f", "lavfi", "-i", canvas_source])
+        
+        # Inputs 1..N: Real Files
         for inp in inputs:
             cmd.extend(["-i", inp])
         
@@ -208,6 +198,8 @@ class SceneRenderer:
         cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", output_filename])
 
         print(f"[Scene {self.index}] Rendering...")
+        # Debug print to see exact command if needed
+        # print(" ".join(cmd)) 
         subprocess.run(cmd, check=True)
         return self.temp_files
 
@@ -231,6 +223,7 @@ def run_timeline(json_path: str):
             chunks.append(out_name)
         except Exception as e:
             print(f"[Error] Scene {i} failed: {e}")
+            raise # Raise error to stop CI pipeline
 
     if not chunks: return
 
@@ -241,7 +234,6 @@ def run_timeline(json_path: str):
     final_out = "output/final.mp4"
     os.makedirs("output", exist_ok=True)
     
-    # Check for Global Background Audio
     bg_music = project.get("background_track")
     cmd = []
     
@@ -250,7 +242,6 @@ def run_timeline(json_path: str):
         all_temps.append(bg_path)
         vol = bg_music.get("volume", 0.15)
         
-        # Concat Visuals + Mix BG Music (looped)
         cmd = [
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_file,
             "-stream_loop", "-1", "-i", bg_path,
