@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
 Production FFmpeg Video Engine (GitHub Actions Optimized)
-Fixes: Retries, Timeouts, Audio Padding, Fail-Fast Validation.
+Features:
+- Robust Input Validation (Fail-Fast)
+- Network Retries & Timeouts
+- Base64 Safety
+- Progress Logging
+- CI/CD Optimization (veryfast preset)
 """
 import argparse
 import base64
@@ -18,18 +23,18 @@ import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 # --- CONFIGURATION ---
 
 @dataclass
 class RenderConfig:
-    width: int = 1080
-    height: int = 1920
+    width: int = int(os.getenv("VIDEO_WIDTH", "1080"))
+    height: int = int(os.getenv("VIDEO_HEIGHT", "1920"))
     fps: int = 25
     codec: str = "libx264"
-    preset: str = "veryfast"  # Optimized for CI/CD speed
-    crf: int = 28             # Balanced quality/size for social media
+    preset: str = os.getenv("FFMPEG_PRESET", "veryfast") # Optimized for CI
+    crf: int = int(os.getenv("FFMPEG_CRF", "28"))        # Balanced quality
     audio_codec: str = "aac"
     audio_bitrate: str = "192k"
     max_download_threads: int = 4
@@ -99,13 +104,21 @@ class AssetManager:
             raise RuntimeError(f"Error processing asset: {e}")
 
     def _save_base64(self, source: str) -> str:
-        header, encoded = source.split(",", 1)
+        try:
+            header, encoded = source.split(",", 1)
+        except ValueError:
+            raise ValueError("Invalid base64 format: missing comma separator")
+
         ext = "bin"
         if "image" in header: ext = "png"
         elif "video" in header: ext = "mp4"
         elif "audio" in header: ext = "mp3"
         
-        data = base64.b64decode(encoded)
+        try:
+            data = base64.b64decode(encoded)
+        except Exception as e:
+            raise ValueError(f"Invalid base64 encoding: {e}")
+
         path = os.path.join(self.temp_dir, f"asset_{hash(source)}.{ext}")
         with open(path, "wb") as f:
             f.write(data)
@@ -129,7 +142,7 @@ class AssetManager:
                 if attempt == max_retries - 1:
                     raise e
                 logger.warning(f"Download failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying...")
-                time.sleep(2 ** attempt) # Exponential backoff (1s, 2s, 4s)
+                time.sleep(2 ** attempt) # Exponential backoff
         return path
 
 # --- FILTER GRAPH BUILDER ---
@@ -167,8 +180,7 @@ class SceneRenderer:
 
         # 1. Determine Duration
         duration = self._calculate_duration(layers)
-        logger.info(f"[Scene {self.index}] Final Duration: {duration}s")
-
+        
         # 2. Setup Inputs
         input_args = ["-f", "lavfi", "-i", f"color=c=black:s={self.config.width}x{self.config.height}:d={duration}"]
         
@@ -238,10 +250,11 @@ class SceneRenderer:
                 a_pad = fg.get_next_label("a_pad")
                 
                 vol = layer.get("volume", 1.0)
-                if not 0.0 <= vol <= 5.0: vol = 1.0 
+                if not 0.0 <= vol <= 5.0: 
+                    logger.warning(f"Scene {self.index}, Audio {i}: Invalid volume {vol}, using 1.0")
+                    vol = 1.0 
                 
                 # FIXED AUDIO PADDING: apad (infinite) -> atrim (cut to size)
-                # This guarantees audio is never shorter than video.
                 af = f"apad,atrim=0:{duration},asetpts=PTS-STARTPTS,volume={vol}"
                 
                 fg.add_node([f"{inp_idx}:a"], af, [a_pad])
@@ -340,9 +353,11 @@ class VideoPipeline:
             try:
                 asset_cache = manager.resolve_all(data["timeline"])
                 
-                # FIXED: Check if background track needs downloading
+                # Check background track
                 bg_track = data.get("background_track")
                 if bg_track:
+                    if "source" not in bg_track:
+                        raise ValueError("background_track missing 'source' field")
                     src = bg_track["source"]
                     if src not in asset_cache:
                         asset_cache[src] = manager._download_asset(src)
@@ -355,13 +370,15 @@ class VideoPipeline:
             chunks = []
             
             for i, scene in enumerate(timeline):
+                logger.info(f"Rendering scene {i+1}/{len(timeline)}...")
                 out_name = os.path.join(temp_dir, f"chunk_{i:03d}.mp4")
                 renderer = SceneRenderer(scene, self.config, asset_cache, i)
                 try:
                     renderer.render(out_name)
                     chunks.append(out_name)
+                    logger.info(f"✓ Scene {i+1} complete")
                 except subprocess.CalledProcessError:
-                    sys.exit(1) # Error already logged in render()
+                    sys.exit(1) 
 
             # 5. Stitch & Background Music
             self._stitch_and_finalize(chunks, data.get("background_track"), asset_cache, "output/final.mp4")
@@ -372,10 +389,23 @@ class VideoPipeline:
         if not data["timeline"]:
             raise ValueError("Timeline is empty")
         
-        # Extended Validation
+        VALID_TYPES = {"video", "image", "text", "audio"}
+        
         for i, scene in enumerate(data["timeline"]):
             if "layers" not in scene:
                  raise ValueError(f"Scene {i} missing 'layers'")
+            
+            for j, layer in enumerate(scene["layers"]):
+                l_type = layer.get("type")
+                if not l_type:
+                    raise ValueError(f"Scene {i}, layer {j}: missing 'type'")
+                if l_type not in VALID_TYPES:
+                    raise ValueError(f"Scene {i}, layer {j}: invalid type '{l_type}'")
+                
+                if l_type in {"video", "image", "audio"} and "source" not in layer:
+                    raise ValueError(f"Scene {i}, layer {j}: type '{l_type}' requires 'source'")
+                if l_type == "text" and "content" not in layer:
+                    raise ValueError(f"Scene {i}, layer {j}: type 'text' requires 'content'")
 
     def _stitch_and_finalize(self, chunks: List[str], bg_track: Optional[Dict], cache: Dict, output_path: str):
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -400,10 +430,19 @@ class VideoPipeline:
         logger.info("Stitching final video...")
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
+            
+            # Log final stats
+            if os.path.exists(output_path):
+                file_size = os.path.getsize(output_path) / (1024 * 1024)
+                logger.info(f"✓ Video rendered successfully: {output_path} ({file_size:.2f} MB)")
+                
         except subprocess.CalledProcessError as e:
             logger.error("Final Stitch Failed")
             logger.error(e.stderr)
             sys.exit(1)
+        finally:
+            if os.path.exists(list_file):
+                os.remove(list_file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
