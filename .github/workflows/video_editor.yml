@@ -18,7 +18,8 @@ jobs:
 
       - name: 🎥 Install FFmpeg (Full)
         run: |
-          sudo apt-get update
+          # || true forces the step to continue even if Microsoft repos fail
+          sudo apt-get update || true
           sudo apt-get install -y ffmpeg
 
       - name: 🐍 Setup Python
