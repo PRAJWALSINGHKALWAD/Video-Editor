@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-FFmpeg Timeline Video Engine (Fixed: Robust Overlays)
-Features: Unlimited Overlay Stacking, Audio Mixing, Auto-Duration.
+FFmpeg Timeline Video Engine (Script-Based Priority)
+Features: Priority to JSON Duration, Audio Padding, Robust Layering.
 """
 import argparse
 import base64
@@ -72,22 +72,33 @@ class SceneRenderer:
     def render(self, output_filename: str) -> Optional[str]:
         layers = self.spec.get("layers", [])
         
-        # 1. Determine Scene Duration
-        master_audio = next((l for l in layers if l.get("type") == "audio" and l.get("role") == "main"), None)
-        if not master_audio:
-            master_audio = next((l for l in layers if l.get("type") == "audio"), None)
-            
+        # 1. Determine Scene Duration (Priority: Explicit JSON > Audio > Default)
+        explicit_duration = self.spec.get("duration")
         scene_duration = 0.0
 
-        if master_audio:
-            path = get_asset_path(master_audio["source"])
+        # Pre-process audio layers to find paths (we need them regardless)
+        audio_layers = [l for l in layers if l.get("type") == "audio"]
+        for al in audio_layers:
+            path = get_asset_path(al["source"])
             self.temp_files.append(path)
-            master_audio["_local_path"] = path 
-            scene_duration = get_media_duration(path)
-            print(f"[Scene {self.index}] Auto-duration: {scene_duration}s")
+            al["_local_path"] = path
+
+        if explicit_duration and explicit_duration != "auto":
+            # CASE A: Script Based (JSON dictates time)
+            scene_duration = float(explicit_duration)
+            print(f"[Scene {self.index}] Script-enforced duration: {scene_duration}s")
         else:
-            scene_duration = float(self.spec.get("duration", 5.0))
-            print(f"[Scene {self.index}] Manual duration: {scene_duration}s")
+            # CASE B: Voice Based (Audio dictates time)
+            # Find 'main' role or first audio
+            master_audio = next((l for l in audio_layers if l.get("role") == "main"), None)
+            if not master_audio and audio_layers: master_audio = audio_layers[0]
+
+            if master_audio:
+                scene_duration = get_media_duration(master_audio["_local_path"])
+                print(f"[Scene {self.index}] Auto-duration from audio: {scene_duration}s")
+            else:
+                scene_duration = 5.0
+                print(f"[Scene {self.index}] Default duration: {scene_duration}s")
 
         # 2. Build Filter Graph
         inputs = []
@@ -112,7 +123,6 @@ class SceneRenderer:
                 if path not in self.temp_files: self.temp_files.append(path)
                 inputs.append(path)
                 
-                # FIX: Default images to 'loop' if not specified, otherwise they act as 1 frame
                 default_mode = "loop" if l_type == "image" else "trim"
                 dur_mode = layer.get("duration_mode", default_mode)
                 vid_ref = f"[{input_count}:v]"
@@ -146,10 +156,6 @@ class SceneRenderer:
                 filter_chain.append(f"{vid_ref}{loop_cmd}setpts=N/FRAME_RATE/TB,{scale_cmd},trim=duration={scene_duration}{opacity_cmd}[{processed_v}]")
                 
                 next_v = f"v_{i+1}"
-                
-                # CRITICAL FIX: Removed 'shortest=1'. 
-                # This ensures a short layer (like a logo) doesn't end the whole video early.
-                # The 'canvas' [v_0] guarantees the correct duration.
                 filter_chain.append(f"[{current_v}][{processed_v}]overlay=x={x}:y={y}:eof_action=pass[{next_v}]")
                 current_v = next_v
                 input_count += 1
@@ -169,13 +175,19 @@ class SceneRenderer:
 
             # --- AUDIO LAYER ---
             elif l_type == "audio":
-                path = layer.get("_local_path") or get_asset_path(layer["source"])
-                if path not in self.temp_files: self.temp_files.append(path)
+                # Path was already handled in pre-processing
+                path = layer["_local_path"]
+                # Don't re-download, just re-add to inputs map if needed. 
+                # Note: We append path to inputs again to ensure index alignment is simple
                 inputs.append(path)
                 
                 vol = layer.get("volume", 1.0)
                 a_lbl = f"a_raw_{i}"
-                filter_chain.append(f"[{input_count}:a]atrim=duration={scene_duration},volume={vol}[{a_lbl}]")
+                
+                # CRITICAL FIX FOR SCRIPT-BASED: 
+                # Use 'apad' to extend audio with silence if it's shorter than scene_duration
+                # Then 'atrim' cuts it if it's longer.
+                filter_chain.append(f"[{input_count}:a]apad,atrim=duration={scene_duration},volume={vol}[{a_lbl}]")
                 audio_streams.append(f"[{a_lbl}]")
                 input_count += 1
 
