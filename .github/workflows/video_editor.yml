@@ -1,0 +1,45 @@
+name: Video Editor Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      json_url:
+        description: 'URL to the JSON configuration file (Raw link)'
+        required: true
+        # Example: https://raw.githubusercontent.com/user/repo/main/job.json
+
+jobs:
+  render-video:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🎥 Install FFmpeg (Full)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 📥 Download JSON Spec
+        run: |
+          # Download the JSON from the URL provided in inputs
+          # -L follows redirects (important for GitHub/Gist raw links)
+          curl -L "${{ inputs.json_url }}" -o job.json
+
+      - name: 🚀 Run Video Engine
+        run: |
+          # Note: Script name updated to video_engine.py
+          python video_engine.py --spec job.json
+
+      - name: 📤 Upload Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-video
+          path: output/
+          retention-days: 1
