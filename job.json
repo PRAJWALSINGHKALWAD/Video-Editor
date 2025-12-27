@@ -4,56 +4,70 @@
     "height": 1920
   },
   "background_track": {
-    "source": "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
-    "volume": 0.1
+    "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/sci-fi-ambient-347390.mp3",
+    "volume": 0.15
   },
   "timeline": [
     {
-      "comment": "Auto Mode: Length determined by Audio",
+      "comment": "Scene 1: Main Voiceover & Hook",
       "layers": [
         {
           "type": "audio",
           "role": "main",
-          "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/test_success.mp3",
+          "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/github_video_editor_test.mp3",
           "volume": 1.0
         },
         {
           "type": "video",
-          "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+          "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/Futuristic%20Interface.mp4",
           "resize_mode": "cover",
           "duration_mode": "loop",
           "opacity": 1.0
         },
         {
           "type": "text",
-          "content": "Mode: Auto (Matches Audio)",
+          "content": "Spatial Computing is Here",
           "y": 1200,
           "size": 70,
+          "color": "white"
+        }
+      ]
+    },
+    {
+      "comment": "Scene 2: Visual Detail (Hand Interface)",
+      "duration": 4.0,
+      "layers": [
+        {
+          "type": "video",
+          "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/Digital%20Hand%20Interface.mp4",
+          "resize_mode": "cover",
+          "duration_mode": "loop",
+          "opacity": 0.8
+        },
+        {
+          "type": "text",
+          "content": "No Keyboards. No Mice.",
+          "y": 1400,
+          "size": 60,
           "color": "yellow"
         }
       ]
     },
     {
-      "comment": "Script Mode: Length forced to 10 seconds",
-      "duration": 10.0,
+      "comment": "Scene 3: Grand Finale",
+      "duration": 5.0,
       "layers": [
         {
-          "type": "audio",
-          "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/test_2.mp3",
-          "volume": 1.0
-        },
-        {
           "type": "video",
-          "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+          "source": "https://raw.githubusercontent.com/PRAJWALSINGHKALWAD/Video-Editor/main/grand_abstraction.mp4",
           "resize_mode": "cover",
-          "duration_mode": "loop",
-          "opacity": 0.5
+          "duration_mode": "loop"
         },
         {
           "type": "text",
-          "content": "Mode: Script (Fixed 10s)",
-          "y": 1400,
-          "size": 60,
+          "content": "The Future is All Around You",
+          "y": 960,
+          "size": 80,
           "color": "white"
         }
       ]
