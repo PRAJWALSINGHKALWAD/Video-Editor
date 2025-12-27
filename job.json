@@ -4,45 +4,36 @@
     "height": 1920
   },
   "background_track": {
-      "source": "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
-      "volume": 0.1
+    "source": "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg",
+    "volume": 0.1
   },
   "timeline": [
-    // SCENE 1: Layered Composition
     {
       "duration": 6.0,
       "layers": [
-        // LAYER 1: Background (Full Screen)
         {
           "type": "video",
           "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
           "resize_mode": "cover",
           "duration_mode": "loop"
         },
-        
-        // LAYER 2: "Ghost" Overlay (Video on Video)
-        // Same video, but offset and transparent
         {
           "type": "video",
           "source": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
           "resize_mode": "cover",
           "opacity": 0.3,
-          "x": 50,  // Offset 50px right
+          "x": 50,
           "duration_mode": "loop"
         },
-
-        // LAYER 3: Watermark Image
         {
           "type": "image",
           "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Python-logo-notext.svg/200px-Python-logo-notext.svg.png",
           "width": 150,
           "height": 150,
-          "x": "W-w-40", // Top Right
+          "x": "W-w-40",
           "y": 40,
           "opacity": 0.9
         },
-
-        // LAYER 4: Text
         {
           "type": "text",
           "content": "Multi-Layer Engine Works!",
