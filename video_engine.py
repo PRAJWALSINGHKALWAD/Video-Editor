@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FFmpeg Timeline Video Engine (Fixed Lavfi Input)
+FFmpeg Timeline Video Engine (Fixed: Robust Overlays)
 Features: Unlimited Overlay Stacking, Audio Mixing, Auto-Duration.
 """
 import argparse
@@ -93,13 +93,11 @@ class SceneRenderer:
         inputs = []
         filter_chain = []
         
-        # We handle the Canvas (Input 0) separately in the command build step
-        # Input 0 is reserved for: color=c=black:s=WxH:d=DURATION
+        # Input 0: The Virtual Canvas
         canvas_source = f"color=c=black:s={self.w}x{self.h}:d={scene_duration}"
         filter_chain.append(f"[0:v]null[v_0]")
         
         current_v = "v_0"
-        # Since Input 0 is the canvas, real files start at Input 1
         input_count = 1 
         
         audio_streams = []
@@ -114,7 +112,9 @@ class SceneRenderer:
                 if path not in self.temp_files: self.temp_files.append(path)
                 inputs.append(path)
                 
-                dur_mode = layer.get("duration_mode", "trim")
+                # FIX: Default images to 'loop' if not specified, otherwise they act as 1 frame
+                default_mode = "loop" if l_type == "image" else "trim"
+                dur_mode = layer.get("duration_mode", default_mode)
                 vid_ref = f"[{input_count}:v]"
                 
                 processed_v = f"v_in_{i}"
@@ -146,7 +146,11 @@ class SceneRenderer:
                 filter_chain.append(f"{vid_ref}{loop_cmd}setpts=N/FRAME_RATE/TB,{scale_cmd},trim=duration={scene_duration}{opacity_cmd}[{processed_v}]")
                 
                 next_v = f"v_{i+1}"
-                filter_chain.append(f"[{current_v}][{processed_v}]overlay=x={x}:y={y}:eof_action=pass:shortest=1[{next_v}]")
+                
+                # CRITICAL FIX: Removed 'shortest=1'. 
+                # This ensures a short layer (like a logo) doesn't end the whole video early.
+                # The 'canvas' [v_0] guarantees the correct duration.
+                filter_chain.append(f"[{current_v}][{processed_v}]overlay=x={x}:y={y}:eof_action=pass[{next_v}]")
                 current_v = next_v
                 input_count += 1
 
@@ -183,13 +187,9 @@ class SceneRenderer:
             filter_chain.append(f"anullsrc=channel_layout=stereo:sample_rate=44100:d={scene_duration}[{final_audio_node}]")
 
         # 5. Build Final Command
-        # CRITICAL FIX: Treat input 0 (canvas) as lavfi to prevent "No such file" error
         cmd = ["ffmpeg", "-y"]
-        
-        # Input 0: The Virtual Canvas
         cmd.extend(["-f", "lavfi", "-i", canvas_source])
         
-        # Inputs 1..N: Real Files
         for inp in inputs:
             cmd.extend(["-i", inp])
         
@@ -198,8 +198,6 @@ class SceneRenderer:
         cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", output_filename])
 
         print(f"[Scene {self.index}] Rendering...")
-        # Debug print to see exact command if needed
-        # print(" ".join(cmd)) 
         subprocess.run(cmd, check=True)
         return self.temp_files
 
@@ -223,7 +221,7 @@ def run_timeline(json_path: str):
             chunks.append(out_name)
         except Exception as e:
             print(f"[Error] Scene {i} failed: {e}")
-            raise # Raise error to stop CI pipeline
+            raise 
 
     if not chunks: return
 
